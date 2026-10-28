@@ -2,7 +2,7 @@
 
 Este repositorio contiene el código y la visualización en formato **UpSet Plot** desarrollada para analizar las relaciones e intersecciones entre los diferentes géneros cinematográficos.
 
-![Visualización UpSet de Géneros Cinematográficos](upset_generos.pdf)
+![Visualización UpSet de Géneros Cinematográficos](upset_generos.png)
 
 ## 📌 Descripción del Proyecto
 El objetivo de este proyecto es desglosar la superposición de géneros en la industria del cine utilizando un enfoque matricial escalable. A diferencia de los diagramas de Venn tradicionales, esta técnica permite observar con claridad tanto el volumen total de cada género como las combinaciones complejas (intersecciones multietiqueta) más frecuentes.
