@@ -1,0 +1,109 @@
+---
+title: "UpSet Plot: Visualización de Intersecciones de Géneros"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Carga de librerías
+
+```{r librerias}
+for (p in c("tidyverse", "ComplexUpset", "patchwork")) {
+  if (!requireNamespace(p, quietly = TRUE)) install.packages(p)
+}
+
+library(tidyverse)
+library(ComplexUpset)
+library(patchwork)
+```
+
+## Carga de datos
+
+Dataset: Christiawan, E. (2026). *TMDB Raw Movie Dataset (2010–2025)* [Dataset]. Zenodo. https://doi.org/10.5281/zenodo.21920642 (CC BY 4.0).
+
+```{r carga}
+# Descarga automática si el archivo no está junto al .Rmd
+# (la URL sigue el patrón habitual de Zenodo; si falla, descarga el CSV a mano)
+if (!file.exists("movies_raw.csv")) {
+  download.file(
+    "https://zenodo.org/records/21920642/files/movies_raw.csv?download=1",
+    destfile = "movies_raw.csv", mode = "wb"
+  )
+}
+
+df <- read_csv("movies_raw.csv")
+str(df)
+```
+
+## Transformación de datos
+
+Se separan los géneros (por `|`, `,` o `;`) y se convierten en columnas lógicas, una por género.
+
+```{r transformacion}
+# Detectar la columna de géneros ("genre" o "genres")
+genre_col <- names(df)[str_detect(names(df), regex("^genres?$", ignore_case = TRUE))][1]
+if (is.na(genre_col)) stop("No se encontró una columna 'genre' o 'genres'. Ajusta genre_col manualmente.")
+
+# Películas sin género (quedan fuera del gráfico)
+n_total  <- nrow(df)
+n_sin_gen <- sum(is.na(df[[genre_col]]) | str_trim(df[[genre_col]]) == "")
+cat("Registros totales:", n_total, "\n",
+    "Sin género (excluidos):", n_sin_gen, "\n",
+    "Incluidos en el UpSet:", n_total - n_sin_gen, "\n")
+
+movies_clean <- df %>%
+  mutate(.id = row_number()) %>%
+  select(.id, genre_raw = all_of(genre_col)) %>%
+  mutate(genre = str_split(genre_raw, "\\s*[|,;]\\s*")) %>%
+  unnest(genre) %>%
+  mutate(genre = str_trim(genre)) %>%
+  filter(!is.na(genre), genre != "") %>%
+  distinct(.id, genre) %>%
+  mutate(val = TRUE) %>%
+  pivot_wider(names_from = genre, values_from = val, values_fill = FALSE)
+
+# Columnas de géneros (todas excepto el identificador)
+genres_cols <- setdiff(colnames(movies_clean), ".id")
+genres_cols
+```
+
+## Película con Action + Adventure
+
+```{r upset, fig.width=16, fig.height=8}
+queries_list <- list()
+if (all(c("Action", "Adventure") %in% genres_cols)) {
+  queries_list <- list(
+    upset_query(intersect = c("Action", "Adventure"), color = "red", fill = "red")
+  )
+}
+
+p <- upset(
+  movies_clean,
+  genres_cols,
+  name = "Intersección de Géneros",
+  width_ratio = 0.2,
+  min_size = 25,
+  n_intersections = 50,
+  sort_intersections_by = "cardinality",
+  sort_intersections = "descending",
+  queries = queries_list,
+  base_annotations = list(
+    "Tamaño de la intersección" = intersection_size(
+      text = list(size = 2, vjust = -0.3),
+      text_colors = c(on_background = "black", on_bar = "white")
+    )
+  )
+) +
+  plot_annotation(
+    title = "Visualización UpSet de Géneros Cinematográficos",
+    caption = "Fuente: TMDB Raw Movie Dataset (2010–2025), Christiawan, E. (2026). Zenodo. doi:10.5281/zenodo.21920642"
+  )
+
+# Mostrar en el HTML
+p
+
+# Guardar en PDF en la misma carpeta que el .Rmd
+ggsave("upset_generos.pdf", plot = p, width = 16, height = 8, device = cairo_pdf)
+```
